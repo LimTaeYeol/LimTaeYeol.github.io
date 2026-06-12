@@ -1,0 +1,2162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>붕괴: 스타레일 — 픽업 소환 시뮬레이터</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-deep:       #07090f;
+  --bg-panel:      #0c0f1c;
+  --bg-card:       #111625;
+  --bg-card-hover: #17203a;
+  --border:        #1c2840;
+  --border-glow:   #2e5090;
+  --accent:        #6e93e0;
+  --accent-bright: #9dbcff;
+  --gold:          #f0c060;
+  --gold-dim:      #a07830;
+  --purple:        #9b6de8;
+  --purple-dim:    #5c3ea0;
+  --red:           #e05050;
+  --green:         #48e09a;
+  --green-dim:     #2a6050;
+  --text-primary:  #dde2f5;
+  --text-secondary:#7a8db0;
+  --text-dim:      #3a4a6a;
+  --tab-active:    #1a2f5a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: 'Noto Sans KR', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+#starfield {
+  position: fixed; top:0; left:0;
+  width:100%; height:100%;
+  pointer-events:none; z-index:0;
+}
+.app {
+  position: relative; z-index: 1;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 28px 18px 80px;
+}
+
+/* ── 헤더 ── */
+.hdr { text-align:center; margin-bottom:36px; }
+.hdr-eye {
+  font-family:'Rajdhani',sans-serif;
+  font-size:11px; letter-spacing:4px; text-transform:uppercase;
+  color:var(--accent); margin-bottom:6px;
+}
+.hdr-title {
+  font-family:'Rajdhani',sans-serif;
+  font-size:32px; font-weight:700; letter-spacing:2px;
+}
+.hdr-title span { color:var(--gold); }
+.hdr-sub {
+  font-size:12px; color:var(--text-secondary);
+  margin-top:8px; line-height:1.7;
+}
+.hdr-line {
+  width:100px; height:1px;
+  background: linear-gradient(90deg,transparent,var(--border-glow),transparent);
+  margin:16px auto 0;
+}
+
+/* ── 진행 바 ── */
+.progress-bar {
+  display:flex; align-items:center;
+  gap:0; margin-bottom:32px;
+}
+.step-node {
+  display:flex; flex-direction:column; align-items:center;
+  gap:6px; flex:1;
+  cursor:default;
+}
+.step-circle {
+  width:32px; height:32px; border-radius:50%;
+  border:1px solid var(--border);
+  background:var(--bg-card);
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:700;
+  color:var(--text-dim);
+  transition:all 0.3s;
+}
+.step-node.active .step-circle {
+  border-color:var(--accent-bright);
+  background:var(--tab-active);
+  color:var(--accent-bright);
+  box-shadow:0 0 12px rgba(110,147,224,0.4);
+}
+.step-node.done .step-circle {
+  border-color:var(--green);
+  background:rgba(72,224,154,0.1);
+  color:var(--green);
+}
+.step-label {
+  font-size:10px; color:var(--text-dim);
+  text-align:center; line-height:1.3;
+  white-space:nowrap;
+}
+.step-node.active .step-label { color:var(--accent); }
+.step-node.done  .step-label  { color:var(--green); }
+.step-line {
+  flex:2; height:1px;
+  background:var(--border);
+  margin-bottom:20px;
+  transition:background 0.3s;
+}
+.step-line.done { background:var(--green-dim); }
+
+/* ── 섹션 라벨 ── */
+.sec-label {
+  font-family:'Rajdhani',sans-serif;
+  font-size:11px; letter-spacing:3px; text-transform:uppercase;
+  color:var(--accent); margin-bottom:14px;
+  display:flex; align-items:center; gap:10px;
+}
+.sec-label::after {
+  content:''; flex:1; height:1px; background:var(--border);
+}
+
+/* ── 화면 패널 ── */
+.screen { display:none; }
+.screen.active { display:block; }
+
+/* ── 픽업 화면: 대분류 탭 ── */
+.tab-row {
+  display:flex; gap:8px; margin-bottom:18px;
+}
+.tab-btn {
+  flex:1; padding:10px 0;
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:8px;
+  font-family:'Noto Sans KR',sans-serif;
+  font-size:13px; font-weight:500;
+  color:var(--text-secondary);
+  cursor:pointer; transition:all 0.2s;
+}
+.tab-btn.active {
+  background:var(--tab-active);
+  border-color:var(--accent-bright);
+  color:var(--accent-bright);
+}
+
+/* ── 소분류 라디오 버튼 ── */
+.sub-grid {
+  display:flex; flex-wrap:wrap; gap:8px;
+  margin-bottom:22px;
+}
+.sub-btn {
+  display:flex; align-items:center; gap:8px;
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:7px 16px;
+  cursor:pointer; transition:all 0.2s;
+  user-select:none;
+}
+.sub-btn:hover { border-color:var(--border-glow); }
+.sub-btn.active {
+  border-color:var(--accent-bright);
+  background:var(--tab-active);
+}
+.sub-icon { font-size:15px; }
+.sub-name { font-size:12px; font-weight:500; color:var(--text-primary); }
+.sub-btn.active .sub-name { color:var(--accent-bright); }
+
+/* ── 캐릭터 풀 그리드 ── */
+.pool-info {
+  background:var(--bg-panel);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:16px 18px;
+  margin-bottom:20px;
+  font-size:12px; color:var(--text-secondary); line-height:1.7;
+}
+.pool-info strong { color:var(--accent); }
+
+.char-pool-grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap:8px; margin-bottom:24px;
+}
+.pool-char-card {
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:10px 6px 8px;
+  text-align:center;
+  transition:all 0.15s;
+}
+.pcc-avatar { font-size:26px; display:block; margin-bottom:5px; }
+.pcc-name { font-size:10px; color:var(--text-primary); margin-bottom:2px; }
+.pcc-el {
+  font-size:9px; padding:1px 6px; border-radius:8px;
+  display:inline-block; margin-top:2px;
+}
+.pcc-owned-badge {
+  font-size:8px; color:var(--green);
+  display:block; margin-top:3px;
+}
+
+/* ── N값 슬라이더 안내 ── */
+.n-design-note {
+  background: linear-gradient(135deg, rgba(110,147,224,0.06), rgba(155,109,232,0.06));
+  border:1px solid var(--border-glow);
+  border-radius:10px;
+  padding:14px 18px;
+  margin-bottom:20px;
+  font-size:12px; color:var(--text-secondary); line-height:1.7;
+}
+.n-design-note .note-title {
+  font-family:'Rajdhani',sans-serif;
+  font-size:12px; letter-spacing:2px; text-transform:uppercase;
+  color:var(--purple); margin-bottom:6px;
+}
+
+/* ── 소환 버튼 ── */
+.summon-area { text-align:center; margin-bottom:8px; }
+.summon-btn {
+  position:relative;
+  background: linear-gradient(135deg,#14245a,#221455);
+  border:1px solid var(--accent);
+  border-radius:12px;
+  padding:16px 52px;
+  font-family:'Rajdhani',sans-serif;
+  font-size:17px; font-weight:700; letter-spacing:2px;
+  color:var(--accent-bright);
+  cursor:pointer; transition:all 0.25s; overflow:hidden;
+}
+.summon-btn:hover:not(:disabled) {
+  box-shadow:0 0 24px rgba(110,147,224,0.4);
+  border-color:var(--accent-bright);
+  transform:translateY(-1px);
+}
+.summon-btn:disabled { opacity:0.35; cursor:not-allowed; }
+
+/* ── 소환 오버레이 ── */
+#overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(4,5,12,0.96);
+  z-index:100; flex-direction:column;
+  align-items:center; justify-content:center;
+}
+#overlay.on { display:flex; }
+.ov-title {
+  font-family:'Rajdhani',sans-serif;
+  font-size:12px; letter-spacing:4px; text-transform:uppercase;
+  color:var(--accent); margin-bottom:22px;
+}
+.ov-cards {
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:14px; max-width:520px; width:100%; padding:0 20px;
+}
+@media(min-width:560px){
+  .ov-cards { grid-template-columns:repeat(4,1fr); }
+}
+.ov-card {
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:20px 10px 16px;
+  text-align:center;
+  opacity:0; transform:translateY(16px) scale(0.92);
+  transition:opacity 0.4s, transform 0.4s;
+  position:relative; overflow:hidden; cursor:default;
+}
+.ov-card.shown { opacity:1; transform:translateY(0) scale(1); }
+.ov-card.owned-card { border-color:var(--gold-dim); cursor:pointer; }
+.ov-card.owned-card:hover { background:var(--bg-card-hover); }
+.ov-card.selected-card {
+  border-color:var(--gold);
+  box-shadow:0 0 18px rgba(240,192,96,0.35);
+}
+.ov-card-top {
+  position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+}
+.ov-badge {
+  position:absolute; top:6px; right:6px;
+  font-size:8px; padding:2px 5px; border-radius:4px;
+  background:rgba(72,224,154,0.12);
+  border:1px solid var(--green-dim);
+  color:var(--green);
+}
+.ov-avatar { font-size:38px; display:block; margin-bottom:8px; }
+.ov-name { font-size:12px; font-weight:500; margin-bottom:3px; }
+.ov-el { font-size:10px; margin-bottom:2px; }
+.ov-hint-text {
+  font-size:10px; color:var(--text-dim); margin-top:6px;
+  transition:color 0.2s;
+}
+.ov-card.selected-card .ov-hint-text { color:var(--gold); }
+.ov-info {
+  font-size:12px; color:var(--text-secondary);
+  text-align:center; max-width:400px; margin-top:18px;
+  line-height:1.6; padding:0 16px;
+}
+.ov-info strong { color:var(--gold); }
+.ov-close {
+  margin-top:20px; display:none;
+  background:transparent;
+  border:1px solid var(--border-glow);
+  border-radius:8px; padding:10px 30px;
+  font-family:'Rajdhani',sans-serif;
+  font-size:13px; letter-spacing:2px;
+  color:var(--accent); cursor:pointer; transition:all 0.2s;
+}
+.ov-close:hover { background:rgba(110,147,224,0.1); border-color:var(--accent-bright); }
+
+/* ── 소환 결과 ── */
+.result-row {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:10px;
+  margin-bottom:24px;
+}
+@media(max-width:540px){ .result-row { grid-template-columns:repeat(2,1fr); } }
+.res-card {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:11px; padding:14px 8px 12px; text-align:center;
+  position:relative; overflow:hidden;
+}
+.res-card.gold-border { border-color:var(--gold); }
+.res-card.gold-border::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+}
+.res-avatar { font-size:32px; margin-bottom:6px; display:block; }
+.res-name { font-size:11px; font-weight:500; margin-bottom:2px; }
+.res-el { font-size:10px; color:var(--text-secondary); margin-bottom:3px; }
+.res-tag {
+  display:inline-block; font-size:9px; padding:2px 7px; border-radius:8px;
+}
+.tag-new { background:rgba(155,109,232,0.15); color:var(--purple); border:1px solid var(--purple-dim); }
+.tag-owned { background:rgba(72,224,154,0.08); color:var(--green); border:1px solid var(--green-dim); }
+.tag-chosen { background:rgba(240,192,96,0.12); color:var(--gold); border:1px solid var(--gold-dim); }
+
+/* ── 파티 목록 구성 화면 ── */
+.party-list-panel {
+  background:var(--bg-panel); border:1px solid var(--border);
+  border-radius:12px; padding:18px; margin-bottom:22px;
+}
+.pl-summon-row {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:8px;
+  margin-bottom:16px; padding-bottom:16px;
+  border-bottom:1px solid var(--border);
+}
+@media(max-width:500px){ .pl-summon-row { grid-template-columns:repeat(2,1fr); } }
+.pl-char {
+  background:var(--bg-card); border:1px solid var(--border-glow);
+  border-radius:10px; padding:12px 8px; text-align:center;
+}
+.pl-char.pickup-slot { border-color:var(--purple-dim); }
+.pl-char.owned-slot  { border-color:var(--border-glow); }
+.pl-avatar { font-size:28px; display:block; margin-bottom:5px; }
+.pl-name { font-size:11px; font-weight:500; margin-bottom:2px; }
+.pl-role { font-size:9px; }
+.pl-role.r-pickup { color:var(--purple); }
+.pl-role.r-owned  { color:var(--accent); }
+
+/* N 슬라이더 */
+.n-row {
+  display:flex; align-items:center; gap:12px; margin-bottom:14px;
+}
+.n-row label { font-size:12px; color:var(--text-secondary); white-space:nowrap; }
+.n-slider {
+  -webkit-appearance:none; flex:1; height:3px;
+  background:var(--border); border-radius:2px; outline:none;
+}
+.n-slider::-webkit-slider-thumb {
+  -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+  background:var(--accent-bright); cursor:pointer;
+  box-shadow:0 0 6px rgba(110,147,224,0.5);
+}
+.n-val {
+  font-family:'Rajdhani',sans-serif; font-size:18px; font-weight:700;
+  color:var(--gold); min-width:20px; text-align:center;
+}
+.n-status {
+  display:flex; justify-content:space-between; align-items:center;
+  margin-bottom:12px;
+}
+.n-status-text { font-size:12px; color:var(--text-secondary); }
+.n-status-text strong { color:var(--accent-bright); font-family:'Rajdhani',sans-serif; font-size:14px; }
+
+/* 보유 캐릭터 그리드 */
+.owned-grid {
+  display:flex; flex-wrap:wrap; gap:8px;
+}
+.own-chip {
+  display:flex; align-items:center; gap:7px;
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:8px; padding:7px 12px;
+  cursor:pointer; font-size:12px; color:var(--text-secondary);
+  transition:all 0.18s; user-select:none;
+}
+.own-chip:hover:not(.disabled) { border-color:var(--border-glow); color:var(--text-primary); }
+.own-chip.selected { border-color:var(--accent-bright); background:var(--tab-active); color:var(--accent-bright); }
+.own-chip.disabled { opacity:0.3; cursor:not-allowed; }
+.own-chip .oc-avatar { font-size:16px; }
+
+/* ── 픽업 버프 선택 화면 ── */
+.buff-header-info {
+  background:var(--bg-panel); border:1px solid var(--border);
+  border-radius:10px; padding:14px 18px; margin-bottom:20px;
+  font-size:12px; color:var(--text-secondary); line-height:1.7;
+}
+.buff-header-info strong { color:var(--accent); }
+.buff-quota {
+  font-size:12px; color:var(--text-secondary); margin-bottom:14px;
+}
+.buff-quota strong { color:var(--gold); font-family:'Rajdhani',sans-serif; font-size:15px; }
+.buff-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:10px; margin-bottom:22px;
+}
+.buff-card {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:12px; padding:16px 12px; text-align:center;
+  cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden;
+}
+.buff-card:hover { border-color:var(--border-glow); background:var(--bg-card-hover); }
+.buff-card.selected {
+  border-color:var(--gold);
+  box-shadow:0 0 14px rgba(240,192,96,0.2);
+  background:rgba(240,192,96,0.04);
+}
+.buff-card.selected::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg,transparent,var(--gold),transparent);
+}
+.buff-icon { font-size:28px; display:block; margin-bottom:8px; }
+.buff-name { font-size:12px; font-weight:500; margin-bottom:4px; }
+.buff-desc { font-size:10px; color:var(--text-secondary); line-height:1.5; }
+.buff-rarity {
+  display:inline-block; font-size:9px; padding:1px 7px; border-radius:8px;
+  margin-top:6px;
+}
+.rarity-s { background:rgba(240,192,96,0.12); color:var(--gold); border:1px solid var(--gold-dim); }
+.rarity-a { background:rgba(155,109,232,0.1); color:var(--purple); border:1px solid var(--purple-dim); }
+.rarity-b { background:rgba(110,147,224,0.1); color:var(--accent); border:1px solid var(--border-glow); }
+.pickup-mark {
+  position:absolute; top:6px; right:6px;
+  font-size:8px; padding:2px 5px; border-radius:3px;
+  background:rgba(155,109,232,0.15); color:var(--purple); border:1px solid var(--purple-dim);
+}
+
+/* ── 파티 편성 화면 ── */
+.party-build-layout {
+  display:grid; grid-template-columns:1fr 1fr; gap:16px;
+  margin-bottom:22px;
+}
+@media(max-width:600px){ .party-build-layout { grid-template-columns:1fr; } }
+.pbl-left, .pbl-right {
+  background:var(--bg-panel); border:1px solid var(--border);
+  border-radius:12px; padding:16px;
+}
+.pbl-title {
+  font-family:'Rajdhani',sans-serif; font-size:11px;
+  letter-spacing:2px; text-transform:uppercase;
+  color:var(--text-secondary); margin-bottom:12px;
+}
+.party-list-chars {
+  display:grid; grid-template-columns:repeat(2,1fr); gap:8px;
+}
+.party-char-btn {
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:10px; padding:10px 8px; text-align:center;
+  cursor:pointer; transition:all 0.2s; position:relative;
+}
+.party-char-btn:hover:not(.disabled) { border-color:var(--border-glow); }
+.party-char-btn.in-party { border-color:var(--green); background:rgba(72,224,154,0.05); }
+.party-char-btn.disabled { opacity:0.3; cursor:not-allowed; }
+.pcb-avatar { font-size:26px; display:block; margin-bottom:4px; }
+.pcb-name { font-size:10px; font-weight:500; margin-bottom:2px; }
+.pcb-uses {
+  font-size:9px; padding:1px 6px; border-radius:6px;
+  background:rgba(110,147,224,0.1); color:var(--accent); border:1px solid var(--border-glow);
+}
+.pcb-uses.zero { background:rgba(224,80,80,0.1); color:var(--red); border-color:rgba(224,80,80,0.3); }
+.pcb-tag {
+  position:absolute; top:4px; right:4px;
+  font-size:8px; padding:1px 4px; border-radius:3px;
+}
+.pcb-tag.t-pickup { background:rgba(155,109,232,0.15); color:var(--purple); }
+.pcb-tag.t-owned  { background:rgba(110,147,224,0.1);  color:var(--accent); }
+
+/* 파티 슬롯 */
+.party-slots {
+  display:grid; grid-template-columns:repeat(2,1fr); gap:8px;
+}
+.slot {
+  background:var(--bg-card); border:2px dashed var(--border);
+  border-radius:10px; padding:14px 8px; text-align:center;
+  min-height:90px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  transition:all 0.2s; position:relative;
+}
+.slot.filled { border-style:solid; border-color:var(--accent); background:rgba(110,147,224,0.04); }
+.slot.filled.slot-pickup { border-color:var(--purple-dim); }
+.slot-num {
+  font-family:'Rajdhani',sans-serif; font-size:20px; font-weight:700;
+  color:var(--text-dim);
+}
+.slot.filled .slot-num { display:none; }
+.slot-char-avatar { font-size:26px; display:block; margin-bottom:4px; }
+.slot-char-name { font-size:11px; }
+.slot-remove {
+  position:absolute; top:4px; right:4px;
+  width:16px; height:16px; border-radius:50%;
+  background:rgba(224,80,80,0.15); color:var(--red);
+  border:1px solid rgba(224,80,80,0.3);
+  font-size:10px; cursor:pointer; display:none;
+  align-items:center; justify-content:center;
+  line-height:1;
+}
+.slot.filled .slot-remove { display:flex; }
+
+/* ── 버튼 공통 ── */
+.action-btn {
+  width:100%; padding:14px;
+  border-radius:10px; cursor:pointer;
+  font-family:'Rajdhani',sans-serif;
+  font-size:15px; font-weight:700; letter-spacing:2px;
+  transition:all 0.2s;
+}
+.btn-primary {
+  background:linear-gradient(135deg,#162050,#1a1260);
+  border:1px solid var(--accent);
+  color:var(--accent-bright);
+}
+.btn-primary:hover:not(:disabled) {
+  box-shadow:0 0 20px rgba(110,147,224,0.35);
+  transform:translateY(-1px);
+}
+.btn-green {
+  background:linear-gradient(135deg,#0e2018,#0e1820);
+  border:1px solid var(--green);
+  color:var(--green);
+}
+.btn-green:hover:not(:disabled) {
+  box-shadow:0 0 18px rgba(72,224,154,0.3);
+  transform:translateY(-1px);
+}
+.action-btn:disabled { opacity:0.35; cursor:not-allowed; transform:none; box-shadow:none; }
+
+/* ── 완료 배너 ── */
+.complete-banner {
+  background:linear-gradient(135deg,#0a1c10,#0a1018);
+  border:1px solid var(--green);
+  border-radius:14px; padding:28px; text-align:center;
+  margin-top:24px; display:none;
+}
+.complete-banner.on { display:block; }
+.cb-title {
+  font-family:'Rajdhani',sans-serif; font-size:22px; font-weight:700;
+  letter-spacing:2px; color:var(--green); margin-bottom:8px;
+}
+.cb-sub { font-size:12px; color:var(--text-secondary); line-height:1.8; }
+.cb-sub strong { color:var(--accent-bright); }
+.reset-btn {
+  margin-top:18px;
+  background:transparent;
+  border:1px solid var(--text-dim);
+  border-radius:8px; padding:9px 26px;
+  font-family:'Rajdhani',sans-serif;
+  font-size:13px; letter-spacing:2px;
+  color:var(--text-dim); cursor:pointer; transition:all 0.2s;
+}
+.reset-btn:hover { border-color:var(--text-secondary); color:var(--text-secondary); }
+
+/* 파티클 */
+#pCanvas {
+  position:fixed; inset:0; pointer-events:none; z-index:99; display:none;
+}
+#pCanvas.on { display:block; }
+
+/* 디자인 노트 칩 */
+.design-note {
+  display:inline-flex; align-items:center; gap:6px;
+  background:rgba(155,109,232,0.08);
+  border:1px solid var(--purple-dim);
+  border-radius:6px; padding:4px 10px;
+  font-size:10px; color:var(--purple);
+  margin-bottom:8px;
+}
+
+/* ── STEP 0: 보유 캐릭터 설정 ── */
+.setup-info {
+  background:var(--bg-panel); border:1px solid var(--border);
+  border-radius:10px; padding:14px 18px; margin-bottom:18px;
+  font-size:12px; color:var(--text-secondary); line-height:1.7;
+}
+.setup-info strong { color:var(--accent); }
+.setup-filter-row {
+  display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;
+}
+.filter-btn {
+  display:flex; align-items:center; gap:5px;
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:16px; padding:5px 12px;
+  font-size:11px; color:var(--text-secondary);
+  cursor:pointer; transition:all 0.15s;
+}
+.filter-btn:hover { border-color:var(--border-glow); }
+.filter-btn.active { border-color:var(--accent-bright); color:var(--accent-bright); background:var(--tab-active); }
+.setup-char-grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap:8px; margin-bottom:20px;
+}
+.setup-char-card {
+  background:var(--bg-card); border:2px solid var(--border);
+  border-radius:10px; padding:10px 6px 8px; text-align:center;
+  cursor:pointer; transition:all 0.15s; position:relative;
+  user-select:none;
+}
+.setup-char-card:hover { border-color:var(--border-glow); }
+.setup-char-card.selected {
+  border-color:var(--green);
+  background:rgba(72,224,154,0.06);
+}
+.setup-char-card.selected::after {
+  content:'✓';
+  position:absolute; top:4px; right:5px;
+  font-size:10px; color:var(--green);
+  font-weight:700;
+}
+.scc-avatar { font-size:24px; display:block; margin-bottom:4px; }
+.scc-name { font-size:9px; color:var(--text-primary); line-height:1.3; }
+.scc-el { font-size:8px; margin-top:3px; display:block; }
+.setup-status {
+  display:flex; justify-content:space-between; align-items:center;
+  margin-bottom:14px; font-size:12px; color:var(--text-secondary);
+}
+.setup-status strong { color:var(--green); font-family:'Rajdhani',sans-serif; font-size:15px; }
+.setup-actions {
+  display:flex; gap:8px; margin-bottom:16px;
+}
+.setup-quick-btn {
+  flex:1; padding:8px;
+  background:var(--bg-card); border:1px solid var(--border);
+  border-radius:8px; font-size:11px; color:var(--text-secondary);
+  cursor:pointer; transition:all 0.15s;
+}
+.setup-quick-btn:hover { border-color:var(--border-glow); color:var(--text-primary); }
+
+/* ── 뒤로가기 버튼 ── */
+.nav-row {
+  display:flex; justify-content:space-between; align-items:center;
+  margin-bottom:16px;
+}
+.back-btn {
+  display:flex; align-items:center; gap:6px;
+  background:transparent; border:1px solid var(--border);
+  border-radius:8px; padding:7px 14px;
+  font-size:12px; color:var(--text-secondary);
+  cursor:pointer; transition:all 0.2s;
+}
+.back-btn:hover { border-color:var(--border-glow); color:var(--text-primary); }
+.home-btn {
+  background:transparent; border:1px solid var(--border);
+  border-radius:8px; padding:7px 14px;
+  font-size:12px; color:var(--text-dim);
+  cursor:pointer; transition:all 0.2s;
+}
+.home-btn:hover { border-color:var(--text-secondary); color:var(--text-secondary); }
+
+/* ── 풀 상태 표시 ── */
+.pool-status {
+  display:flex; align-items:center; justify-content:space-between;
+  background:var(--bg-panel); border:1px solid var(--border);
+  border-radius:8px; padding:10px 16px;
+  margin-bottom:12px; font-size:12px;
+}
+.pool-status-count { color:var(--text-secondary); }
+.pool-status-count strong { color:var(--accent-bright); font-family:'Rajdhani',sans-serif; font-size:16px; }
+.pool-status-prob { color:var(--text-secondary); }
+.pool-status-prob strong { color:var(--gold); font-family:'Rajdhani',sans-serif; }
+.pool-status-warn { color:var(--red); font-size:11px; }
+
+/* ── 소분류 다중선택 — 선택된 수 표시 ── */
+.sub-sel-count {
+  font-size:11px; color:var(--text-secondary);
+  margin-bottom:10px;
+}
+.sub-sel-count strong { color:var(--accent-bright); }
+
+.pcb-uses-row {
+  display:flex; align-items:center; justify-content:center;
+  gap:4px; margin-top:3px;
+}
+
+/* ── ⓘ 인포 버튼 ── */
+.info-btn {
+  display:inline-flex; align-items:center; gap:5px;
+  height:24px; border-radius:12px;
+  background:rgba(110,147,224,0.12);
+  border:1px solid var(--border-glow);
+  color:var(--accent); font-size:11px; font-weight:500;
+  cursor:pointer; transition:all 0.2s;
+  margin-left:10px; padding:0 10px;
+  vertical-align:middle; flex-shrink:0;
+  letter-spacing:0.5px;
+}
+.info-btn:hover {
+  background:rgba(110,147,224,0.25);
+  border-color:var(--accent-bright);
+  color:var(--accent-bright);
+  box-shadow:0 0 10px rgba(110,147,224,0.35);
+}
+.info-btn::before {
+  content:'ⓘ';
+  font-size:12px;
+}
+
+/* ── 모달 오버레이 ── */
+#infoModal {
+  display:none; position:fixed; inset:0;
+  background:rgba(4,5,12,0.85);
+  z-index:200; align-items:center; justify-content:center;
+  padding:20px;
+}
+#infoModal.on { display:flex; }
+.modal-box {
+  background:var(--bg-panel);
+  border:1px solid var(--border-glow);
+  border-radius:16px;
+  max-width:540px; width:100%;
+  padding:28px 32px;
+  position:relative;
+  max-height:82vh; overflow-y:auto;
+  word-break:keep-all; word-wrap:break-word;
+}
+.modal-box::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg,transparent,var(--accent-bright),transparent);
+  border-radius:16px 16px 0 0;
+}
+.modal-title {
+  font-family:'Rajdhani',sans-serif;
+  font-size:13px; font-weight:700; letter-spacing:2px;
+  color:var(--accent-bright); margin-bottom:18px;
+  text-transform:uppercase; line-height:1.4;
+  padding-right:24px;
+}
+.modal-body {
+  font-size:12.5px; color:var(--text-secondary);
+  line-height:2; word-break:keep-all;
+}
+.modal-body strong { color:var(--accent-bright); }
+.modal-body .modal-tag {
+  display:inline-block; font-size:10px; padding:3px 10px; border-radius:4px;
+  background:rgba(110,147,224,0.1); border:1px solid var(--border-glow);
+  color:var(--accent); margin:6px 0 8px; font-family:'Rajdhani',sans-serif;
+  letter-spacing:1px;
+}
+.modal-body .modal-calc {
+  background:rgba(110,147,224,0.05); border-left:2px solid var(--accent);
+  border-radius:0 6px 6px 0; padding:12px 16px; margin:10px 0;
+  font-size:12px; line-height:2.1; word-break:keep-all;
+}
+.modal-close {
+  position:absolute; top:16px; right:18px;
+  background:transparent; border:none;
+  color:var(--text-dim); font-size:20px; cursor:pointer;
+  transition:color 0.2s; line-height:1;
+}
+.modal-close:hover { color:var(--text-primary); }
+.modal-divider {
+  height:1px; background:var(--border); margin:16px 0;
+}
+</style>
+</head>
+<body>
+<canvas id="starfield"></canvas>
+<canvas id="pCanvas"></canvas>
+
+<!-- 소환 오버레이 -->
+<div id="overlay">
+  <div class="ov-title">✦ PICKUP SUMMON ✦</div>
+  <div class="ov-cards" id="ovCards"></div>
+  <p class="ov-info" id="ovInfo"></p>
+  <button class="ov-close" id="ovClose" onclick="closeOverlay()">확인</button>
+</div>
+
+<!-- ⓘ 인포 모달 -->
+<div id="infoModal" onclick="closeInfoModal(event)">
+  <div class="modal-box" id="modalBox">
+    <button class="modal-close" onclick="closeInfoModalDirect()">✕</button>
+    <div class="modal-title" id="modalTitle"></div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- 헤더 -->
+  <div class="hdr">
+    <div class="hdr-eye">Honkai: Star Rail — System Prototype</div>
+    <h1 class="hdr-title">픽업 <span>소환</span> 시뮬레이터</h1>
+    <p class="hdr-sub">
+      신규 콘텐츠 <strong style="color:var(--accent-bright);">혼돈의 시험대</strong> — 픽업 소환 시스템 인터랙티브 프로토타입<br>
+      <span style="color:var(--text-secondary);font-size:12px;">기획자: 임태열 &nbsp;·&nbsp; 시스템 기획 포트폴리오</span>
+    </p>
+    <div class="hdr-line"></div>
+  </div>
+
+  <!-- 진행 바 -->
+  <div class="progress-bar" id="progressBar">
+    <div class="step-node active" data-step="0">
+      <div class="step-circle">0</div>
+      <div class="step-label">보유<br>설정</div>
+    </div>
+    <div class="step-line" id="line01"></div>
+    <div class="step-node" data-step="1">
+      <div class="step-circle">1</div>
+      <div class="step-label">픽업<br>선택</div>
+    </div>
+    <div class="step-line" id="line12"></div>
+    <div class="step-node" data-step="2">
+      <div class="step-circle">2</div>
+      <div class="step-label">소환<br>진행</div>
+    </div>
+    <div class="step-line" id="line23"></div>
+    <div class="step-node" data-step="3">
+      <div class="step-circle">3</div>
+      <div class="step-label">파티<br>목록</div>
+    </div>
+    <div class="step-line" id="line34"></div>
+    <div class="step-node" data-step="4">
+      <div class="step-circle">4</div>
+      <div class="step-label">픽업<br>버프</div>
+    </div>
+    <div class="step-line" id="line45"></div>
+    <div class="step-node" data-step="5">
+      <div class="step-circle">5</div>
+      <div class="step-label">파티<br>편성</div>
+    </div>
+    <div class="step-line" id="line56"></div>
+    <div class="step-node" data-step="6">
+      <div class="step-circle">6</div>
+      <div class="step-label">전투<br>입장</div>
+    </div>
+  </div>
+
+  <!-- ══════════ SCREEN 0: 보유 캐릭터 설정 ══════════ -->
+  <div class="screen active" id="screen0">
+    <div class="sec-label">STEP 00 &nbsp; 보유 캐릭터 설정 <button class="info-btn" onclick="openInfoModal('step0')">설계 근거</button></div>
+    <div class="setup-info">
+      현재 <strong>보유 중인 캐릭터</strong>를 선택해주세요.<br>
+      소환 결과에 보유 캐릭터가 등장하면 <strong>기존 보유 유지 또는 소환 캐릭터로 교체</strong>를 선택할 수 있습니다.
+      <span style="color:var(--text-secondary);font-size:11px;display:block;margin-top:6px;">
+        ※ 실제 게임에서는 계정 보유 캐릭터 데이터를 자동으로 불러옵니다. 이 단계는 시뮬레이터 체험을 위한 설정 화면입니다.
+      </span>
+    </div>
+
+
+    <!-- 보유 설정 대분류 탭 -->
+    <div class="tab-row" style="margin-bottom:12px;">
+      <button class="tab-btn active" id="setup-tab-attr" onclick="switchSetupTab('attr')">속성</button>
+      <button class="tab-btn" id="setup-tab-path" onclick="switchSetupTab('path')">운명의 길</button>
+    </div>
+    <!-- 소분류 라디오 버튼 -->
+    <div id="setup-sub-attr" class="sub-grid"></div>
+    <div id="setup-sub-path" class="sub-grid" style="display:none;"></div>
+    <!-- 선택 현황 + 빠른 선택 버튼 -->
+    <div class="setup-status">
+      <span>선택된 보유 캐릭터: <strong id="setupSelCount">0</strong>명
+        <span id="setupMinWarning" style="color:var(--red);font-size:10px;margin-left:8px;display:none;">
+          ※ N=2 이상 난이도 도전 시 최소 5명 권장
+        </span>
+      </span>
+      <span style="font-size:10px;color:#5a6e94;">클릭하여 선택/해제</span>
+    </div>
+    <div class="setup-actions">
+      <button class="setup-quick-btn" onclick="setupSelectAll()">전체 선택</button>
+      <button class="setup-quick-btn" onclick="setupClearAll()">전체 해제</button>
+    </div>
+    <!-- 캐릭터 그리드 -->
+    <div class="setup-char-grid" id="setupCharGrid"></div>
+    <button class="action-btn btn-primary" id="toScreen1Btn" onclick="goToScreen(1)" disabled>
+      다음: 픽업 분류 선택 →
+    </button>
+  </div>
+
+  <!-- ══════════ SCREEN 1: 픽업 선택 ══════════ -->
+  <div class="screen" id="screen1">
+    <div class="nav-row">
+      <button class="back-btn" onclick="goToScreen(0)">← 이전: 보유 설정</button>
+      <button class="home-btn" onclick="resetAll()">↺ 처음으로</button>
+    </div>
+    <div class="sec-label">STEP 01 &nbsp; 픽업 분류 선택 <button class="info-btn" onclick="openInfoModal('step1')">설계 의도</button></div>
+
+    <div class="pool-info">
+      <strong>대분류</strong> 선택 후 <strong>소분류를 1개 이상</strong> 선택해 캐릭터 풀을 구성하세요.
+      선택한 소분류 캐릭터가 합쳐진 풀에서 4명이 균등 확률로 소환됩니다.
+    </div>
+
+    <!-- 대분류 탭 -->
+    <div class="tab-row">
+      <button class="tab-btn active" id="tab-attr" onclick="switchTab('attr')">속성</button>
+      <button class="tab-btn" id="tab-path" onclick="switchTab('path')">운명의 길</button>
+    </div>
+
+    <!-- 소분류 선택 수 표시 -->
+    <div class="sub-sel-count" id="subSelCount">선택된 소분류: <strong>1</strong>개</div>
+
+    <!-- 속성 소분류 -->
+    <div id="sub-attr" class="sub-grid"></div>
+    <!-- 운명의 길 소분류 -->
+    <div id="sub-path" class="sub-grid" style="display:none;"></div>
+
+    <!-- 풀 상태 표시 -->
+    <div class="pool-status" id="poolStatus">
+      <span class="pool-status-count">현재 풀: <strong id="poolCount">0</strong>명</span>
+      <span class="pool-status-prob" id="poolProb"></span>
+      <span class="pool-status-warn" id="poolWarn" style="display:none;">⚠ 최소 4명 이상 필요</span>
+    </div>
+
+    <!-- 캐릭터 풀 -->
+    <div class="sec-label" style="margin-top:4px;">등장 가능 캐릭터 풀</div>
+    <div class="char-pool-grid" id="poolGrid"></div>
+
+    <div class="summon-area">
+      <button class="summon-btn" id="summonBtn" onclick="doSummon()" disabled>
+        ✦ 픽업 소환 진행 ✦
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════ SCREEN 2: 소환 결과 ══════════ -->
+  <div class="screen" id="screen2">
+    <div class="nav-row">
+      <button class="back-btn" onclick="goToScreen(1)">← 이전: 픽업 선택</button>
+      <button class="home-btn" onclick="resetAll()">↺ 처음으로</button>
+    </div>
+    <div class="sec-label">STEP 02 &nbsp; 소환 결과</div>
+    <div class="result-row" id="resultRow"></div>
+    <button class="action-btn btn-primary" onclick="goToScreen(3)">
+      다음: 파티 목록 구성 →
+    </button>
+  </div>
+
+  <!-- ══════════ SCREEN 3: 파티 목록 구성 ══════════ -->
+  <div class="screen" id="screen3">
+    <div class="nav-row">
+      <button class="back-btn" onclick="goToScreen(2)">← 이전: 소환 결과</button>
+      <button class="home-btn" onclick="resetAll()">↺ 처음으로</button>
+    </div>
+    <div class="sec-label">STEP 03 &nbsp; 파티 목록 구성 <button class="info-btn" onclick="openInfoModal('step3')">N값 근거</button></div>
+
+    <div class="party-list-panel">
+      <!-- 소환 캐릭터 4명 고정 -->
+      <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">
+        📦 픽업 소환 캐릭터 (고정 4명)
+      </div>
+      <div class="pl-summon-row" id="plSummonRow"></div>
+
+      <!-- N값 슬라이더 -->
+      <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">
+        ✦ 보유 캐릭터 선택 <span style="color:var(--text-secondary);font-size:11px;">— N값 조정 가능 (밸런스 변수)</span>
+      </div>
+      <div class="n-row">
+        <label>함께 출격할 보유 캐릭터</label>
+        <input type="range" class="n-slider" id="nSlider" min="0" max="8" value="2" oninput="updateN()">
+        <span class="n-val" id="nVal">2</span>
+        <label>명</label>
+      </div>
+      <div class="n-status">
+        <span class="n-status-text">선택됨: <strong id="selCount">0</strong> / <span id="nReq">2</span>명 필요</span>
+        <span style="font-size:10px;color:#5a6e94;">클릭하여 선택/해제</span>
+      </div>
+      <div class="owned-grid" id="ownedGrid"></div>
+    </div>
+
+    <button class="action-btn btn-primary" id="toBuffBtn" onclick="goToScreen(4)" disabled>
+      다음: 픽업 버프 선택 →
+    </button>
+  </div>
+
+  <!-- ══════════ SCREEN 4: 픽업 버프 선택 ══════════ -->
+  <div class="screen" id="screen4">
+    <div class="nav-row">
+      <button class="back-btn" onclick="goToScreen(3)">← 이전: 파티 목록</button>
+      <button class="home-btn" onclick="resetAll()">↺ 처음으로</button>
+    </div>
+    <div class="sec-label">STEP 04 &nbsp; 픽업 버프 선택 <button class="info-btn" onclick="openInfoModal('step4')">버프 설계</button></div>
+
+    <div class="buff-header-info">
+      버프 풀에서 <strong>픽업 버프 2개</strong>를 직접 선택하세요.
+      선택한 버프가 픽업 지정되어 이후 스테이지 클리어 보상에서 해당 버프의 <strong>등장 확률이 상승</strong>합니다.
+    </div>
+
+    <!-- 소환 결과 요약 -->
+    <div class="buff-header-info" id="summonSummary" style="margin-bottom:12px;background:rgba(110,147,224,0.05);border-color:var(--border-glow);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <span style="font-size:10px;color:var(--accent);letter-spacing:1px;font-family:'Rajdhani',sans-serif;">
+          내 소환 결과 — 버프 선택 참고
+        </span>
+        <span id="summonCountBadges" style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;max-width:55%;"></span>
+      </div>
+      <div id="summonSummaryContent" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    </div>
+
+    <!-- 버프 카테고리 탭 -->
+    <div class="tab-row" style="margin-bottom:12px;" id="buffTabRow"></div>
+
+    <div class="buff-quota">
+      픽업 지정: <strong id="buffSelCount">0</strong> / <span id="buffReq">2</span>개
+      <span style="color:var(--text-secondary);font-size:11px;margin-left:8px;">
+        S등급 기본 확률 낮음 · 픽업 지정 시 확률 상승폭 큼 (수치 미정)
+      </span>
+    </div>
+    <div class="buff-grid" id="buffGrid"></div>
+
+    <button class="action-btn btn-primary" id="toPartyBtn" onclick="goToScreen(5)" disabled>
+      다음: 파티 편성 →
+    </button>
+  </div>
+
+  <!-- ══════════ SCREEN 5: 파티 편성 ══════════ -->
+  <div class="screen" id="screen5">
+    <div class="nav-row">
+      <button class="back-btn" onclick="goToScreen(4)">← 이전: 픽업 버프</button>
+      <button class="home-btn" onclick="resetAll()">↺ 처음으로</button>
+    </div>
+    <div class="sec-label">STEP 05 &nbsp; 파티 편성 <button class="info-btn" onclick="openInfoModal('step5')">출전 횟수</button></div>
+
+    <div class="party-build-layout">
+      <!-- 좌: 파티 목록 -->
+      <div class="pbl-left">
+        <div class="pbl-title">파티 목록 — 클릭하여 슬롯에 배치</div>
+        <div class="party-list-chars" id="partyListChars"></div>
+      </div>
+      <!-- 우: 파티 슬롯 -->
+      <div class="pbl-right">
+        <div class="pbl-title">전투 파티 슬롯 (최대 4명)</div>
+        <div class="party-slots" id="partySlots"></div>
+      </div>
+    </div>
+
+    <button class="action-btn btn-green" id="confirmPartyBtn" onclick="confirmParty()" disabled>
+      ⚔ 파티 확정 · 전투 입장
+    </button>
+  </div>
+
+  <!-- ══════════ SCREEN 6: 전투 입장 완료 ══════════ -->
+  <div class="screen" id="screen6">
+    <div class="nav-row">
+      <button class="back-btn" onclick="goBackFromComplete()">← 이전: 파티 편성</button>
+      <button class="home-btn" onclick="resetAll()">↺ 처음으로</button>
+    </div>
+    <div class="complete-banner on" id="completeBanner" style="margin-top:0;">
+      <div class="cb-title">✦ 전투 준비 완료 ✦</div>
+      <div class="cb-sub" id="cbText"></div>
+      <button class="reset-btn" onclick="resetAll()">↺ &nbsp; 처음부터</button>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<script>
+/* ════════════════════════════════
+   DATA
+════════════════════════════════ */
+const ATTRS = [
+  { id:'physical',   name:'물리', icon:'⚙️', color:'#a0a0b0' },
+  { id:'fire',       name:'화염', icon:'🔥', color:'#e07050' },
+  { id:'ice',        name:'얼음', icon:'❄️', color:'#60a8e0' },
+  { id:'lightning',  name:'번개', icon:'⚡', color:'#aa60e0' },
+  { id:'wind',       name:'바람', icon:'🌀', color:'#50d890' },
+  { id:'quantum',    name:'양자', icon:'🔮', color:'#7060e0' },
+  { id:'imaginary',  name:'허수', icon:'✨', color:'#e0c050' },
+];
+const PATHS = [
+  { id:'destruction',  name:'파멸', icon:'💥', color:'#e06060', role:'딜러' },
+  { id:'hunt',         name:'수렵', icon:'🏹', color:'#e09040', role:'딜러' },
+  { id:'erudition',    name:'지식', icon:'📖', color:'#60a0e0', role:'공격형 서포터' },
+  { id:'harmony',      name:'화합', icon:'🎵', color:'#60e0a0', role:'공격형 서포터' },
+  { id:'nihility',     name:'공허', icon:'🌑', color:'#8060c0', role:'공격형 서포터' },
+  { id:'preservation', name:'보존', icon:'🛡️', color:'#60a0c0', role:'방어형 서포터' },
+  { id:'abundance',    name:'풍요', icon:'🌿', color:'#50d880', role:'방어형 서포터' },
+  { id:'remembrance',  name:'기억', icon:'💭', color:'#c090e0', role:'소환사' },
+];
+
+// 5성 캐릭터 — 태열님 제공 속성별 + 운명의 길별 데이터 기준
+const CHARS = [
+  // ── 물리 ──
+  { id:'tb_destruction',     name:'개척자·파멸',    el:'physical',   path:'destruction',  emoji:'🌠' },
+  { id:'clara',              name:'클라라',          el:'physical',   path:'destruction',  emoji:'🤖' },
+  { id:'argenti',            name:'아젠티',          el:'physical',   path:'erudition',    emoji:'🌹' },
+  { id:'boothill',           name:'부트힐',          el:'physical',   path:'hunt',         emoji:'🤠' },
+  { id:'yunli',              name:'운리',            el:'physical',   path:'destruction',  emoji:'⚔️' },
+  { id:'phainon',            name:'파이논',          el:'physical',   path:'destruction',  emoji:'🌊' },
+  { id:'hysilens',           name:'히실렌스',        el:'physical',   path:'nihility',     emoji:'🎻' },
+  { id:'dh_imbibitor',       name:'단황·등황',       el:'physical',   path:'preservation', emoji:'🐲' },
+  // ── 화염 ──
+  { id:'tb_preservation',    name:'개척자·보존',     el:'fire',       path:'preservation', emoji:'🔥' },
+  { id:'himeko',             name:'히메코',          el:'fire',       path:'erudition',    emoji:'💫' },
+  { id:'topaz',              name:'토파즈&복순이',   el:'fire',       path:'hunt',         emoji:'🔴' },
+  { id:'genevieve',          name:'계네빈',          el:'fire',       path:'nihility',     emoji:'🃏' },
+  { id:'firefly',            name:'반디',            el:'fire',       path:'destruction',  emoji:'🦋' },
+  { id:'rappa',              name:'초구',            el:'fire',       path:'nihility',     emoji:'🎭' },
+  { id:'lingsha',            name:'영사',            el:'fire',       path:'abundance',    emoji:'🌺' },
+  { id:'misha',              name:'망귀인',          el:'fire',       path:'nihility',     emoji:'❄️' },
+  { id:'dahlia',             name:'달리아',          el:'fire',       path:'nihility',     emoji:'🌻' },
+  { id:'tb_blade',           name:'천야·블레이드',   el:'fire',       path:'nihility',     emoji:'🗡️' },
+  { id:'himeko_nova',        name:'히메코·노바',     el:'fire',       path:'erudition',    emoji:'🌟' },
+  // ── 얼음 ──
+  { id:'tb_remembrance',     name:'개척자·기억',     el:'ice',        path:'remembrance',  emoji:'💭' },
+  { id:'gepard',             name:'게파드',          el:'ice',        path:'preservation', emoji:'🛡️' },
+  { id:'yanqing',            name:'연경',            el:'ice',        path:'hunt',         emoji:'🗡️' },
+  { id:'jingliu',            name:'경류',            el:'ice',        path:'destruction',  emoji:'🌀' },
+  { id:'ruan_mei',           name:'완·매',           el:'ice',        path:'harmony',      emoji:'🌺' },
+  { id:'the_herta',          name:'더 헤르타',       el:'ice',        path:'erudition',    emoji:'📚' },
+  { id:'evernight',          name:'에버나이트',      el:'ice',        path:'remembrance',  emoji:'🌑' },
+  { id:'cyrene',             name:'키레네',          el:'ice',        path:'remembrance',  emoji:'🔮' },
+  // ── 번개 ──
+  { id:'bailu',              name:'백로',            el:'lightning',  path:'abundance',    emoji:'🐉' },
+  { id:'jingyuan',           name:'경원',            el:'lightning',  path:'erudition',    emoji:'⛈️' },
+  { id:'kafka',              name:'카프카',          el:'lightning',  path:'nihility',     emoji:'🌩' },
+  { id:'acheron',            name:'아케론',          el:'lightning',  path:'nihility',     emoji:'⚔️' },
+  { id:'mactavish',          name:'맥택',            el:'lightning',  path:'destruction',  emoji:'💪' },
+  { id:'aglaea',             name:'아글라이아',      el:'lightning',  path:'remembrance',  emoji:'🌿' },
+  { id:'ashbeil',            name:'애쉬베일',        el:'lightning',  path:'hunt',         emoji:'🦇' },
+  { id:'gilgamesh',          name:'길가메시',        el:'lightning',  path:'destruction',  emoji:'👑' },
+  // ── 바람 ──
+  { id:'bronya',             name:'브로냐',          el:'wind',       path:'harmony',      emoji:'🌬️' },
+  { id:'blade',              name:'블레이드',        el:'wind',       path:'destruction',  emoji:'🌪️' },
+  { id:'jiaoqiu',            name:'곽향',            el:'wind',       path:'abundance',    emoji:'🦊' },
+  { id:'black_swan',         name:'블랙스완',        el:'wind',       path:'nihility',     emoji:'🦢' },
+  { id:'bixa',               name:'비소',            el:'wind',       path:'hunt',         emoji:'🎯' },
+  { id:'anaksa',             name:'아낙사',          el:'wind',       path:'erudition',    emoji:'🌸' },
+  { id:'hyacinth',           name:'히아킨',          el:'wind',       path:'remembrance',  emoji:'💐' },
+  { id:'saber',              name:'세이버',          el:'wind',       path:'destruction',  emoji:'⚔️' },
+  { id:'caelider',           name:'케리드라',        el:'wind',       path:'harmony',      emoji:'🌊' },
+  // ── 양자 ──
+  { id:'seele',              name:'제레',            el:'quantum',    path:'hunt',         emoji:'🦋' },
+  { id:'silver_wolf',        name:'은랑',            el:'quantum',    path:'nihility',     emoji:'🐺' },
+  { id:'fuxuan',             name:'부현',            el:'quantum',    path:'preservation', emoji:'💜' },
+  { id:'sparkle',            name:'스파클',          el:'quantum',    path:'harmony',      emoji:'🎭' },
+  { id:'jade',               name:'제이드',          el:'quantum',    path:'erudition',    emoji:'💎' },
+  { id:'tribbie',            name:'트리비',          el:'quantum',    path:'harmony',      emoji:'🐇' },
+  { id:'castorice',          name:'카스토리스',      el:'quantum',    path:'remembrance',  emoji:'🌸' },
+  { id:'cipher',             name:'사이퍼',          el:'quantum',    path:'nihility',     emoji:'🔐' },
+  { id:'archer',             name:'아처',            el:'quantum',    path:'hunt',         emoji:'🏹' },
+  { id:'rin',                name:'토오사카·린',     el:'quantum',    path:'erudition',    emoji:'💎' },
+  // ── 허수 ──
+  { id:'tb_harmony',         name:'개척자·화합',     el:'imaginary',  path:'harmony',      emoji:'🌀' },
+  { id:'welt',               name:'웰트',            el:'imaginary',  path:'nihility',     emoji:'🌌' },
+  { id:'luocha',             name:'나찰',            el:'imaginary',  path:'abundance',    emoji:'🌸' },
+  { id:'dh_im',              name:'단항·음월',       el:'imaginary',  path:'destruction',  emoji:'🌙' },
+  { id:'dr_ratio',           name:'Dr. 레이시오',    el:'imaginary',  path:'hunt',         emoji:'⚖️' },
+  { id:'aventurine',         name:'어벤츄린',        el:'imaginary',  path:'preservation', emoji:'🎲' },
+  { id:'rappa_im',           name:'라파',            el:'imaginary',  path:'erudition',    emoji:'🎸' },
+  { id:'sunday',             name:'선데이',          el:'imaginary',  path:'harmony',      emoji:'☀️' },
+  { id:'mydei',              name:'마이데이',        el:'imaginary',  path:'destruction',  emoji:'🔱' },
+];
+
+// 보유 캐릭터 — STEP 0에서 유저가 직접 설정
+let OWNED_IDS = [];
+
+// 버프 풀 — 운명의 길 연계(S) / 속성 연계(A) / 공용(B) 3카테고리
+const BUFFS = [
+  // ── 운명의 길 연계 (S등급) ──
+  { id:'path_destruction',  name:'파멸의 칼날',   icon:'💥', cat:'path',    desc:'파멸 캐릭터 격파 피해 증가',                    rarity:'S' },
+  { id:'path_hunt',         name:'수렵의 예리함', icon:'🏹', cat:'path',    desc:'수렵 캐릭터 단일 대상 집중 피해 증가',            rarity:'S' },
+  { id:'path_erudition',    name:'지식의 증폭',   icon:'📖', cat:'path',    desc:'지식 캐릭터 스킬·필살기 피해 증가',               rarity:'S' },
+  { id:'path_harmony',      name:'화합의 공명',   icon:'🎵', cat:'path',    desc:'화합 캐릭터 아군 버프 효과량 증가',               rarity:'S' },
+  { id:'path_nihility',     name:'공허의 잠식',   icon:'🌑', cat:'path',    desc:'공허 캐릭터 상태이상 적중 및 지속시간 증가',      rarity:'S' },
+  { id:'path_preservation', name:'보존의 방벽',   icon:'🛡️', cat:'path',    desc:'보존 캐릭터 보호막량 및 피해 감소 증가',          rarity:'S' },
+  { id:'path_abundance',    name:'풍요의 치유',   icon:'🌿', cat:'path',    desc:'풍요 캐릭터 회복량 및 생존 관련 효과 증가',       rarity:'S' },
+  { id:'path_remembrance',  name:'기억의 잔상',   icon:'💭', cat:'path',    desc:'기억 캐릭터 소환물 관련 피해 및 속도 증가',       rarity:'S' },
+  // ── 속성 연계 (A등급) ──
+  { id:'el_physical',  name:'물리 각성',   icon:'⚙️', cat:'element', desc:'물리 속성 캐릭터 공격 관련 수치 증가',            rarity:'A' },
+  { id:'el_fire',      name:'화염 점화',   icon:'🔥', cat:'element', desc:'화염 속성 캐릭터 연소·격파 관련 피해 증가',        rarity:'A' },
+  { id:'el_ice',       name:'빙결 심화',   icon:'❄️', cat:'element', desc:'얼음 속성 캐릭터 동결·속도 관련 효과 증가',        rarity:'A' },
+  { id:'el_lightning', name:'번개 과부하', icon:'⚡', cat:'element', desc:'번개 속성 캐릭터 치명타 관련 수치 증가',           rarity:'A' },
+  { id:'el_wind',      name:'질풍 가속',   icon:'🌀', cat:'element', desc:'바람 속성 캐릭터 행동 속도 관련 수치 증가',        rarity:'A' },
+  { id:'el_quantum',   name:'양자 중첩',   icon:'🔮', cat:'element', desc:'양자 속성 캐릭터 방어 관통 관련 수치 증가',        rarity:'A' },
+  { id:'el_imaginary', name:'허수 왜곡',   icon:'✨', cat:'element', desc:'허수 속성 캐릭터 스킬 피해 관련 수치 증가',        rarity:'A' },
+  // ── 공용 (B등급) ──
+  { id:'cmn_crit',   name:'전술 집중',  icon:'💢', cat:'common', desc:'파티 전체 치명타 관련 수치 증가',                  rarity:'B' },
+  { id:'cmn_energy', name:'에너지 충전',icon:'🔋', cat:'common', desc:'파티 전체 필살기 에너지 회복 속도 증가',           rarity:'B' },
+  { id:'cmn_spd',    name:'선제 타격',  icon:'⚡', cat:'common', desc:'전투 시작 시 파티 전체 행동 게이지 증가',          rarity:'B' },
+  { id:'cmn_def',    name:'철벽 방어',  icon:'🛡️', cat:'common', desc:'파티 전체 받는 피해 감소',                         rarity:'B' },
+  { id:'cmn_follow', name:'연쇄 격발',  icon:'🌟', cat:'common', desc:'추가 공격 발동 시 피해 증가',                      rarity:'B' },
+];
+const BUFF_N = 2; // 버프 선택 수 (고정 — 방향성 2개로 전략 집중)
+const BUFF_CATS = [
+  { id:'path',    name:'운명의 길', icon:'⭐', desc:'S등급 — 강력 / 기본 확률 낮음' },
+  { id:'element', name:'속성',     icon:'🔷', desc:'A등급 — 중간' },
+  { id:'common',  name:'공용',     icon:'🔶', desc:'B등급 — 범용 / 기본 확률 높음' },
+];
+
+/* ════════════════════════════════
+   STATE
+════════════════════════════════ */
+let S = {
+  tab: 'attr',          // 선택 탭
+  subSel: null,         // 선택된 소분류 (단일, 하위호환용)
+  subSels: ['physical'],  // 선택된 소분류 목록 (다중)
+  pool: [],             // 현재 풀 캐릭터
+  summoned: [],         // 소환된 4명
+  chosenSummon: [],     // 보유와 겹칠 때 소환 선택
+  N: 2,
+  ownedSel: [],
+  buffSel: [],
+  partySlots: [null,null,null,null],
+  step: 0,
+  setupTab: 'attr',     // STEP 0 대분류 탭
+  setupFilter: 'physical', // STEP 0 소분류 (기본: 물리)
+};
+
+function getChar(id){ return CHARS.find(c=>c.id===id); }
+function isOwned(id){ return OWNED_IDS.includes(id); }
+function getAttr(id){ return ATTRS.find(a=>a.id===id); }
+function getPath(id){ return PATHS.find(p=>p.id===id); }
+
+/* ════════════════════════════════
+   STARFIELD
+════════════════════════════════ */
+(function(){
+  const c=document.getElementById('starfield');
+  const ctx=c.getContext('2d');
+  let stars=[];
+  function resize(){
+    c.width=window.innerWidth; c.height=window.innerHeight;
+    stars=Array.from({length:160},()=>({
+      x:Math.random()*c.width, y:Math.random()*c.height,
+      r:Math.random()*1.1+0.2, a:Math.random(), s:Math.random()*0.003+0.001
+    }));
+  }
+  function draw(){
+    ctx.clearRect(0,0,c.width,c.height);
+    stars.forEach(s=>{
+      s.a+=s.s;
+      const a=(Math.sin(s.a)+1)/2*0.55+0.08;
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(190,205,255,${a})`; ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize',resize); resize(); draw();
+})();
+
+/* ════════════════════════════════
+   PARTICLES
+════════════════════════════════ */
+let pAnim=null;
+function launchParticles(){
+  const c=document.getElementById('pCanvas');
+  c.width=window.innerWidth; c.height=window.innerHeight;
+  c.classList.add('on');
+  const ctx=c.getContext('2d');
+  const ps=Array.from({length:70},()=>({
+    x:c.width/2, y:c.height/2,
+    vx:(Math.random()-.5)*9, vy:(Math.random()-.5)*9,
+    r:Math.random()*2.5+.5,
+    life:1, decay:Math.random()*.018+.007,
+    color:['#f0c060','#9dbcff','#9b6de8','#48e09a'][Math.floor(Math.random()*4)],
+  }));
+  function tick(){
+    ctx.clearRect(0,0,c.width,c.height);
+    let alive=false;
+    ps.forEach(p=>{
+      p.x+=p.vx; p.y+=p.vy; p.vy+=.07; p.life-=p.decay;
+      if(p.life>0){
+        alive=true; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+        ctx.fillStyle=p.color+Math.floor(p.life*255).toString(16).padStart(2,'0');
+        ctx.fill();
+      }
+    });
+    if(alive) pAnim=requestAnimationFrame(tick);
+    else c.classList.remove('on');
+  }
+  if(pAnim) cancelAnimationFrame(pAnim); tick();
+}
+
+/* ════════════════════════════════
+   PROGRESS
+════════════════════════════════ */
+function updateProgress(step){
+  S.step=step;
+  document.querySelectorAll('.step-node').forEach(n=>{
+    const s=parseInt(n.dataset.step);
+    n.classList.toggle('active', s===step);
+    n.classList.toggle('done', s<step);
+  });
+  [['line01',1],['line12',2],['line23',3],['line34',4],['line45',5],['line56',6]].forEach(([id,s])=>{
+    const el=document.getElementById(id);
+    if(el) el.classList.toggle('done', step>=s);
+  });
+}
+
+function goToScreen(n){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const target = document.getElementById('screen'+n);
+  if(target) target.classList.add('active');
+  updateProgress(n);
+  // 즉시 + smooth 두 번 처리 (브라우저 호환성)
+  window.scrollTo(0, 0);
+  setTimeout(()=>window.scrollTo({top:0, behavior:'smooth'}), 10);
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+  if(n===0) renderSetupScreen();
+  if(n===1) initScreen1();
+  if(n===3) renderScreen3();
+  if(n===4) renderBuffScreen();
+  if(n===5) renderPartyScreen();
+}
+
+/* ════════════════════════════════
+   SCREEN 0 — 보유 캐릭터 설정
+════════════════════════════════ */
+function renderSetupScreen(){
+  // 대분류 탭 활성화
+  document.getElementById('setup-tab-attr').classList.toggle('active', S.setupTab==='attr');
+  document.getElementById('setup-tab-path').classList.toggle('active', S.setupTab==='path');
+
+  // 속성 소분류 버튼
+  const attrDiv = document.getElementById('setup-sub-attr');
+  attrDiv.style.display = S.setupTab==='attr' ? 'flex' : 'none';
+  attrDiv.innerHTML = ATTRS.map(a=>`
+    <div class="sub-btn ${S.setupFilter===a.id && S.setupTab==='attr' ?'active':''}"
+         id="setsub-${a.id}" onclick="setSetupFilter('attr','${a.id}')">
+      <span class="sub-icon">${a.icon}</span>
+      <span class="sub-name">${a.name}</span>
+    </div>`).join('');
+
+  // 운명의 길 소분류 버튼
+  const pathDiv = document.getElementById('setup-sub-path');
+  pathDiv.style.display = S.setupTab==='path' ? 'flex' : 'none';
+  pathDiv.innerHTML = PATHS.map(p=>`
+    <div class="sub-btn ${S.setupFilter===p.id && S.setupTab==='path' ?'active':''}"
+         id="setsub-${p.id}" onclick="setSetupFilter('path','${p.id}')">
+      <span class="sub-icon">${p.icon}</span>
+      <span class="sub-name">${p.name}</span>
+    </div>`).join('');
+
+  renderSetupGrid();
+}
+
+function switchSetupTab(tab){
+  S.setupTab = tab;
+  // 탭 전환 시 첫 번째 소분류 자동 선택
+  S.setupFilter = tab==='attr' ? ATTRS[0].id : PATHS[0].id;
+  renderSetupScreen();
+}
+
+function setSetupFilter(tab, id){
+  S.setupTab = tab;
+  S.setupFilter = id;
+  renderSetupScreen();
+}
+
+function renderSetupGrid(){
+  const filtered = S.setupTab==='attr'
+    ? CHARS.filter(c => c.el === S.setupFilter)
+    : CHARS.filter(c => c.path === S.setupFilter);
+
+  const grid = document.getElementById('setupCharGrid');
+  grid.innerHTML = filtered.map(c => {
+    const attr = getAttr(c.el);
+    const sel  = OWNED_IDS.includes(c.id);
+    return `<div class="setup-char-card ${sel?'selected':''}" id="scc-${c.id}" onclick="toggleSetupChar('${c.id}')">
+      <span class="scc-avatar">${c.emoji}</span>
+      <div class="scc-name">${c.name}</div>
+      <span class="scc-el" style="color:${attr.color}">${attr.name}</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('setupSelCount').textContent = OWNED_IDS.length;
+  updateSetupStatus();
+}
+
+function updateSetupStatus(){
+  const cnt = OWNED_IDS.length;
+  const MIN = 1; // 첫 난이도 N=1 기준 개척자 1명으로 참여 가능
+  document.getElementById('setupSelCount').textContent = cnt;
+  document.getElementById('toScreen1Btn').disabled = cnt < MIN;
+  const warn = document.getElementById('setupMinWarning');
+  if(warn) warn.style.display = cnt > 0 && cnt < 5 ? 'inline' : 'none'; // 5명 미만이면 조합 선택권 안내
+}
+
+function toggleSetupChar(id){
+  const idx = OWNED_IDS.indexOf(id);
+  if(idx !== -1){
+    OWNED_IDS.splice(idx, 1);
+  } else {
+    OWNED_IDS.push(id);
+  }
+  const card = document.getElementById(`scc-${id}`);
+  if(card) card.classList.toggle('selected', OWNED_IDS.includes(id));
+  updateSetupStatus();
+}
+
+function setupSelectAll(){
+  const filtered = S.setupTab==='attr'
+    ? CHARS.filter(c => c.el === S.setupFilter)
+    : CHARS.filter(c => c.path === S.setupFilter);
+  filtered.forEach(c => {
+    if(!OWNED_IDS.includes(c.id)) OWNED_IDS.push(c.id);
+  });
+  renderSetupGrid();
+  updateSetupStatus();
+}
+
+function setupClearAll(){
+  const filtered = S.setupTab==='attr'
+    ? CHARS.filter(c => c.el === S.setupFilter)
+    : CHARS.filter(c => c.path === S.setupFilter);
+  const filteredIds = filtered.map(c => c.id);
+  filteredIds.forEach(id => {
+    const idx = OWNED_IDS.indexOf(id);
+    if(idx !== -1) OWNED_IDS.splice(idx, 1);
+  });
+  renderSetupGrid();
+  updateSetupStatus();
+}
+
+/* ════════════════════════════════
+   SCREEN 1 — 픽업 선택
+════════════════════════════════ */
+function initScreen1(){
+  // 속성 소분류
+  const attrDiv=document.getElementById('sub-attr');
+  attrDiv.innerHTML=ATTRS.map(a=>`
+    <div class="sub-btn" id="sbattr-${a.id}" onclick="toggleSub('attr','${a.id}')">
+      <span class="sub-icon">${a.icon}</span>
+      <span class="sub-name">${a.name}</span>
+    </div>`).join('');
+  // 운명의 길 소분류
+  const pathDiv=document.getElementById('sub-path');
+  pathDiv.innerHTML=PATHS.map(p=>`
+    <div class="sub-btn" id="sbpath-${p.id}" onclick="toggleSub('path','${p.id}')">
+      <span class="sub-icon">${p.icon}</span>
+      <span class="sub-name">${p.name}</span>
+    </div>`).join('');
+
+  // 디폴트: 속성 탭 + 물리 소분류 선택
+  S.tab = 'attr';
+  S.subSels = [ATTRS[0].id];
+  document.getElementById('tab-attr').classList.add('active');
+  document.getElementById('tab-path').classList.remove('active');
+  document.getElementById('sub-attr').style.display = 'flex';
+  document.getElementById('sub-path').style.display = 'none';
+  refreshSubButtons();
+  updatePool();
+}
+
+function switchTab(tab){
+  S.tab=tab;
+  // 탭 전환 시 첫 번째 소분류만 선택된 상태로 초기화
+  S.subSels = tab==='attr' ? [ATTRS[0].id] : [PATHS[0].id];
+  document.getElementById('tab-attr').classList.toggle('active', tab==='attr');
+  document.getElementById('tab-path').classList.toggle('active', tab==='path');
+  document.getElementById('sub-attr').style.display = tab==='attr'?'flex':'none';
+  document.getElementById('sub-path').style.display = tab==='path'?'flex':'none';
+  refreshSubButtons();
+  updatePool();
+}
+
+function toggleSub(tab, id){
+  // 다중선택 토글
+  const idx = S.subSels.indexOf(id);
+  if(idx !== -1){
+    // 마지막 1개는 해제 불가
+    if(S.subSels.length === 1) return;
+    S.subSels.splice(idx, 1);
+  } else {
+    S.subSels.push(id);
+  }
+  refreshSubButtons();
+  updatePool();
+}
+
+function refreshSubButtons(){
+  // 모든 소분류 버튼 active 상태 동기화
+  const allSubs = [...ATTRS.map(a=>a.id), ...PATHS.map(p=>p.id)];
+  allSubs.forEach(id => {
+    const btnA = document.getElementById(`sbattr-${id}`);
+    const btnP = document.getElementById(`sbpath-${id}`);
+    if(btnA) btnA.classList.toggle('active', S.subSels.includes(id));
+    if(btnP) btnP.classList.toggle('active', S.subSels.includes(id));
+  });
+  // 선택 수 표시
+  const el = document.getElementById('subSelCount');
+  if(el) el.innerHTML = `선택된 소분류: <strong>${S.subSels.length}</strong>개`;
+}
+
+function updatePool(){
+  // 선택된 소분류들의 캐릭터 합산 (중복 제거)
+  const ids = new Set();
+  S.pool = [];
+  S.subSels.forEach(subId => {
+    const chars = S.tab==='attr'
+      ? CHARS.filter(c=>c.el===subId)
+      : CHARS.filter(c=>c.path===subId);
+    chars.forEach(c => {
+      if(!ids.has(c.id)){ ids.add(c.id); S.pool.push(c); }
+    });
+  });
+
+  // 풀 상태 표시 업데이트
+  const cnt = S.pool.length;
+  const countEl  = document.getElementById('poolCount');
+  const probEl   = document.getElementById('poolProb');
+  const warnEl   = document.getElementById('poolWarn');
+  const summonBtn = document.getElementById('summonBtn');
+
+  if(countEl) countEl.textContent = cnt;
+  if(probEl){
+    if(cnt >= 4){
+      const prob = (100/cnt).toFixed(1);
+      probEl.innerHTML = `소환 확률: <strong>각 ${prob}%</strong> (균등)`;
+      probEl.style.display = 'inline';
+    } else {
+      probEl.style.display = 'none';
+    }
+  }
+  if(warnEl) warnEl.style.display = cnt < 4 ? 'inline' : 'none';
+  if(summonBtn) summonBtn.disabled = cnt < 4;
+
+  renderPool();
+}
+
+function renderPool(){
+  const grid=document.getElementById('poolGrid');
+  grid.innerHTML=S.pool.map(c=>{
+    const attr=getAttr(c.el);
+    return `<div class="pool-char-card">
+      <span class="pcc-avatar">${c.emoji}</span>
+      <div class="pcc-name">${c.name}</div>
+      <span class="pcc-el" style="background:${attr.color}20;color:${attr.color};border:1px solid ${attr.color}50">${attr.name}</span>
+    </div>`;
+  }).join('') || '<div style="color:#5a6e94;font-size:12px;padding:12px;">해당 분류의 5성 캐릭터가 없습니다.</div>';
+}
+
+/* ════════════════════════════════
+   SUMMON
+════════════════════════════════ */
+function doSummon(){
+  if(S.pool.length<4){ alert('캐릭터 풀이 4명 미만입니다.'); return; }
+
+  // 풀 내 보유 캐릭터 / 미보유 캐릭터 분리
+  const poolOwned    = S.pool.filter(c => isOwned(c.id));
+  const poolNotOwned = S.pool.filter(c => !isOwned(c.id));
+
+  let result = [];
+
+  if(poolOwned.length > 0){
+    // 보유 캐릭터가 풀에 존재하면 → 1명 반드시 포함, 나머지 3명은 미보유에서 추출
+    const picked = poolOwned[Math.floor(Math.random()*poolOwned.length)];
+    const rest   = [...poolNotOwned].sort(()=>Math.random()-.5).slice(0,3);
+    // 미보유가 3명 미만이면 보유에서 추가 보충
+    if(rest.length < 3){
+      const extra = poolOwned.filter(c=>c.id!==picked.id)
+                             .sort(()=>Math.random()-.5)
+                             .slice(0, 3-rest.length);
+      result = [picked, ...rest, ...extra];
+    } else {
+      result = [picked, ...rest];
+    }
+    // 4명 섞기
+    result = result.sort(()=>Math.random()-.5);
+  } else {
+    // 보유 캐릭터가 풀에 없으면 → 순수 랜덤 4명
+    result = [...S.pool].sort(()=>Math.random()-.5).slice(0,4);
+  }
+
+  S.summoned = result;
+  S.chosenSummon = [];
+
+  launchParticles();
+  setTimeout(showOverlay, 350);
+}
+
+function showOverlay(){
+  const ov=document.getElementById('overlay');
+  const cards=document.getElementById('ovCards');
+  const info=document.getElementById('ovInfo');
+  const btn=document.getElementById('ovClose');
+
+  const overlapped=S.summoned.filter(c=>isOwned(c.id));
+
+  cards.innerHTML=S.summoned.map((c,i)=>{
+    const owned=isOwned(c.id);
+    const attr=getAttr(c.el);
+    return `<div class="ov-card ${owned?'owned-card':''}" id="ovc-${c.id}"
+      style="transition-delay:${i*.12}s"
+      ${owned?`onclick="toggleOvChoice('${c.id}')"`:''}>
+      ${owned?'<div class="ov-card-top"></div>':''}
+      ${owned?'<div class="ov-badge">보유 중</div>':''}
+      <span class="ov-avatar">${c.emoji}</span>
+      <div class="ov-name">${c.name}</div>
+      <div class="ov-el" style="color:${attr.color}">${attr.name} · ${getPath(c.path)?.name||''}</div>
+      <div class="ov-hint-text" id="ovhint-${c.id}">
+        ${owned?'👆 클릭: 소환 캐릭터로 교체':'✦ 신규 획득'}
+      </div>
+    </div>`;
+  }).join('');
+
+  if(overlapped.length>0){
+    info.innerHTML=`
+      <strong>보유 중인 캐릭터</strong>(${overlapped.map(c=>c.name).join(', ')})가 소환 결과에 등장했습니다.<br>
+      해당 카드를 클릭해 <strong style="color:var(--gold)">소환 캐릭터로 교체</strong>할지,
+      <strong style="color:var(--green)">기존 보유 유지</strong>할지 선택하세요.`;
+  } else {
+    info.innerHTML='<strong>4명 모두 미보유 캐릭터</strong>입니다. 확인을 눌러 다음 단계로 이동하세요.';
+  }
+
+  ov.classList.add('on');
+  btn.style.display='none';
+
+  requestAnimationFrame(()=>{
+    document.querySelectorAll('.ov-card').forEach(el=>{
+      setTimeout(()=>el.classList.add('shown'),50);
+    });
+  });
+  setTimeout(()=>{ btn.style.display='inline-block'; }, 900);
+}
+
+function toggleOvChoice(id){
+  const idx=S.chosenSummon.indexOf(id);
+  const card=document.getElementById(`ovc-${id}`);
+  const hint=document.getElementById(`ovhint-${id}`);
+  if(idx===-1){
+    S.chosenSummon.push(id);
+    card.classList.add('selected-card');
+    hint.textContent='✔ 소환 캐릭터로 교체 선택됨';
+  } else {
+    S.chosenSummon.splice(idx,1);
+    card.classList.remove('selected-card');
+    hint.textContent='👆 클릭: 소환 캐릭터로 교체';
+  }
+}
+
+function closeOverlay(){
+  document.getElementById('overlay').classList.remove('on');
+  renderResultRow();
+  goToScreen(2);
+}
+
+function renderResultRow(){
+  const row=document.getElementById('resultRow');
+  row.innerHTML=S.summoned.map(c=>{
+    const owned=isOwned(c.id);
+    const chosen=S.chosenSummon.includes(c.id);
+    const attr=getAttr(c.el);
+    let tag='';
+    if(chosen)      tag=`<span class="res-tag tag-chosen">소환 선택</span>`;
+    else if(owned)  tag=`<span class="res-tag tag-owned">보유 유지</span>`;
+    else            tag=`<span class="res-tag tag-new">신규 획득</span>`;
+    return `<div class="res-card ${chosen?'gold-border':''}">
+      ${chosen?'':''}
+      <span class="res-avatar">${c.emoji}</span>
+      <div class="res-name">${c.name}</div>
+      <div class="res-el" style="color:${attr.color}">${attr.name}</div>
+      ${tag}
+    </div>`;
+  }).join('');
+}
+
+/* ════════════════════════════════
+   SCREEN 3 — 파티 목록
+════════════════════════════════ */
+function renderScreen3(){
+  // 소환 4명
+  const row=document.getElementById('plSummonRow');
+  row.innerHTML=S.summoned.map(c=>{
+    const attr=getAttr(c.el);
+    return `<div class="pl-char pickup-slot">
+      <span class="pl-avatar">${c.emoji}</span>
+      <div class="pl-name">${c.name}</div>
+      <div class="pl-role r-pickup" style="color:${attr.color}">${attr.name}</div>
+    </div>`;
+  }).join('');
+
+  // 보유 캐릭터 (소환과 겹치는데 소환 선택한 경우 제외)
+  // 소환 결과에 포함된 보유 캐릭터는 보유 목록에서 제외
+  // (소환 선택 → 소환 캐릭터로 교체, 보유 유지 → 보유 목록에서도 제외하여 중복 방지)
+  const summonedIds = S.summoned.map(c=>c.id);
+  const availableOwned = OWNED_IDS.filter(id => !summonedIds.includes(id));
+  const grid=document.getElementById('ownedGrid');
+  grid.innerHTML=availableOwned.map(id=>{
+    const c=getChar(id); if(!c) return '';
+    const attr=getAttr(c.el);
+    return `<div class="own-chip" id="oc-${id}" onclick="toggleOwned('${id}')">
+      <span class="oc-avatar">${c.emoji}</span>
+      <span>${c.name}</span>
+      <span style="color:${attr.color};font-size:10px">${attr.name}</span>
+    </div>`;
+  }).join('');
+
+  S.ownedSel=[];
+  updateN();
+}
+
+function updateN(){
+  const v=parseInt(document.getElementById('nSlider').value);
+  S.N=v;
+  document.getElementById('nVal').textContent=v;
+  document.getElementById('nReq').textContent=v;
+  while(S.ownedSel.length>v){
+    const rem=S.ownedSel.pop();
+    const el=document.getElementById(`oc-${rem}`);
+    if(el) el.classList.remove('selected');
+  }
+  refreshOwnedState();
+}
+
+function toggleOwned(id){
+  const idx=S.ownedSel.indexOf(id);
+  const chip=document.getElementById(`oc-${id}`);
+  if(idx!==-1){
+    S.ownedSel.splice(idx,1);
+    chip.classList.remove('selected');
+  } else {
+    if(S.ownedSel.length>=S.N) return;
+    S.ownedSel.push(id);
+    chip.classList.add('selected');
+  }
+  refreshOwnedState();
+}
+
+function refreshOwnedState(){
+  document.getElementById('selCount').textContent=S.ownedSel.length;
+  const full=S.ownedSel.length>=S.N;
+  document.querySelectorAll('.own-chip').forEach(el=>{
+    const id=el.id.replace('oc-','');
+    const sel=S.ownedSel.includes(id);
+    el.classList.toggle('disabled', !sel&&full);
+  });
+  const ready=S.N===0||S.ownedSel.length===S.N;
+  document.getElementById('toBuffBtn').disabled=!ready;
+}
+
+/* ════════════════════════════════
+   SCREEN 4 — 픽업 버프
+════════════════════════════════ */
+let currentBuffCat = 'path'; // 현재 선택된 버프 탭
+
+function renderBuffScreen(){
+  S.buffSel=[];
+  currentBuffCat = 'path';
+  document.getElementById('buffSelCount').textContent='0';
+  document.getElementById('buffReq').textContent=BUFF_N;
+  renderSummonSummary();
+  renderBuffTabs();
+  renderBuffGrid();
+}
+
+function renderSummonSummary(){
+  const el = document.getElementById('summonSummaryContent');
+  if(!el) return;
+
+  // 소환 4명 + 보유 선택 N명 합산
+  const summonedChars = S.summoned.map(c => ({...c, role:'pickup'}));
+  const ownedChars = S.ownedSel.map(id => {
+    const c = getChar(id);
+    return c ? {...c, role:'owned'} : null;
+  }).filter(Boolean);
+
+  const allChars = [...summonedChars, ...ownedChars];
+  if(!allChars.length) return;
+
+  el.innerHTML = allChars.map(c => {
+    const attr = getAttr(c.el);
+    const path = getPath(c.path);
+    const borderColor = c.role === 'pickup' ? 'var(--gold-dim)' : 'var(--border-glow)';
+    const roleLabel = c.role === 'pickup' ? '픽업' : '보유';
+    const roleLabelColor = c.role === 'pickup' ? 'var(--gold)' : 'var(--green)';
+    return `<span style="
+      display:inline-flex;align-items:center;gap:5px;
+      background:var(--bg-card);border:1px solid ${borderColor};
+      border-radius:6px;padding:4px 10px;font-size:11px;
+      color:var(--text-primary);">
+      <span style="font-size:9px;color:${roleLabelColor};">${roleLabel}</span>
+      ${c.emoji}
+      <span style="color:${attr.color}">${attr.name}</span>
+      <span style="color:var(--text-dim)">·</span>
+      <span style="color:var(--accent-bright)">${path?.name||''}</span>
+    </span>`;
+  }).join('');
+
+  // 속성/운명의 길 카운트 배지
+  const badges = document.getElementById('summonCountBadges');
+  if(!badges) return;
+
+  // 속성 카운트
+  const elCount = {};
+  const pathCount = {};
+  allChars.forEach(c => {
+    elCount[c.el] = (elCount[c.el]||0) + 1;
+    pathCount[c.path] = (pathCount[c.path]||0) + 1;
+  });
+
+  // 속성 배지 (2개 이상만 표시, 나머지는 1개도 표시)
+  const elBadges = Object.entries(elCount)
+    .sort((a,b) => b[1]-a[1])
+    .map(([id, cnt]) => {
+      const attr = getAttr(id);
+      return `<span style="
+        display:inline-flex;align-items:center;gap:3px;
+        background:${attr.color}18;border:1px solid ${attr.color}60;
+        border-radius:4px;padding:2px 7px;font-size:10px;
+        color:${attr.color};white-space:nowrap;">
+        ${attr.icon} ${attr.name} <strong>${cnt}</strong>
+      </span>`;
+    }).join('');
+
+  // 운명의 길 배지
+  const pathBadges = Object.entries(pathCount)
+    .sort((a,b) => b[1]-a[1])
+    .map(([id, cnt]) => {
+      const path = getPath(id);
+      return `<span style="
+        display:inline-flex;align-items:center;gap:3px;
+        background:rgba(157,188,255,0.08);border:1px solid rgba(157,188,255,0.3);
+        border-radius:4px;padding:2px 7px;font-size:10px;
+        color:var(--accent-bright);white-space:nowrap;">
+        ${path?.icon||''} ${path?.name||id} <strong>${cnt}</strong>
+      </span>`;
+    }).join('');
+
+  badges.innerHTML = `
+    <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;margin-bottom:4px;">
+      ${elBadges}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;">
+      ${pathBadges}
+    </div>
+  `;
+}
+
+function renderBuffTabs(){
+  const row = document.getElementById('buffTabRow');
+  if(!row) return;
+  row.innerHTML = BUFF_CATS.map(cat=>`
+    <button class="tab-btn ${currentBuffCat===cat.id?'active':''}"
+            onclick="switchBuffCat('${cat.id}')">
+      ${cat.icon} ${cat.name}
+      <span style="font-size:9px;color:#5a6e94;margin-left:4px;">${cat.desc}</span>
+    </button>`).join('');
+}
+
+function switchBuffCat(catId){
+  currentBuffCat = catId;
+  renderBuffTabs();
+  renderBuffGrid();
+}
+
+function renderBuffGrid(){
+  const filtered = BUFFS.filter(b => b.cat === currentBuffCat);
+  const grid = document.getElementById('buffGrid');
+  grid.innerHTML = filtered.map(b=>`
+    <div class="buff-card ${S.buffSel.includes(b.id)?'selected':''}" id="buff-${b.id}" onclick="toggleBuff('${b.id}')">
+      <div class="pickup-mark" id="pm-${b.id}" style="${S.buffSel.includes(b.id)?'display:block':'display:none'};">✦ 픽업 지정</div>
+      <span class="buff-icon">${b.icon}</span>
+      <div class="buff-name">${b.name}</div>
+      <div class="buff-desc">${b.desc}</div>
+      <span class="buff-rarity rarity-${b.rarity.toLowerCase()}">${b.rarity}등급</span>
+    </div>`).join('');
+}
+
+function toggleBuff(id){
+  const idx=S.buffSel.indexOf(id);
+  if(idx!==-1){
+    S.buffSel.splice(idx,1);
+  } else {
+    if(S.buffSel.length>=BUFF_N) return;
+    S.buffSel.push(id);
+  }
+  document.getElementById('buffSelCount').textContent=S.buffSel.length;
+  document.getElementById('toPartyBtn').disabled=S.buffSel.length<BUFF_N;
+  renderBuffGrid(); // 선택 상태 즉시 반영
+}
+
+/* ════════════════════════════════
+   SCREEN 5 — 파티 편성
+════════════════════════════════ */
+function renderPartyScreen(){
+  S.partySlots=[null,null,null,null];
+
+  // 파티 목록 = 소환 4 + 선택된 보유
+  const partyList=[
+    ...S.summoned.map(c=>({...c, role:'pickup'})),
+    ...S.ownedSel.map(id=>({...getChar(id), role:'owned'})),
+  ];
+
+  const chars=document.getElementById('partyListChars');
+  chars.innerHTML=partyList.map(m=>{
+    const attr = getAttr(m.el);
+    const path = getPath(m.path);
+    return `<div class="party-char-btn" id="pcb-${m.id}" onclick="addToSlot('${m.id}')">
+      <span class="pcb-tag t-${m.role}">${m.role==='pickup'?'픽업':'보유'}</span>
+      <span class="pcb-avatar">${m.emoji}</span>
+      <div class="pcb-name">${m.name}</div>
+      <div class="pcb-attr" style="color:${attr.color};font-size:9px;margin-bottom:2px;">
+        ${attr.icon} ${attr.name} · ${path?.name||''}
+      </div>
+      <div class="pcb-uses-row">
+        <span style="font-size:8px;color:#5a6e94;">출전 가능</span>
+        <span class="pcb-uses">N회</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  renderSlots();
+}
+
+function renderSlots(){
+  const slotsDiv=document.getElementById('partySlots');
+  slotsDiv.innerHTML=S.partySlots.map((char,i)=>`
+    <div class="slot ${char?'filled':''}${char&&S.summoned.find(c=>c.id===char.id)?' slot-pickup':''}"
+         id="slot-${i}">
+      <span class="slot-num">${i+1}</span>
+      ${char?`
+        <span class="slot-char-avatar">${char.emoji}</span>
+        <div class="slot-char-name">${char.name}</div>
+        <div style="font-size:8px;color:${getAttr(char.el)?.color};margin-top:1px;">
+          ${getAttr(char.el)?.icon} ${getAttr(char.el)?.name} · ${getPath(char.path)?.name||''}
+        </div>
+        <button class="slot-remove" onclick="removeFromSlot(${i},event)">✕</button>
+      `:''}
+    </div>`).join('');
+
+  const filled=S.partySlots.filter(Boolean).length;
+  document.getElementById('confirmPartyBtn').disabled=filled<1;
+}
+
+function addToSlot(charId){
+  // 이미 슬롯에 있으면 → 한 번 더 클릭 시 취소
+  const existIdx = S.partySlots.findIndex(s=>s&&s.id===charId);
+  if(existIdx !== -1){
+    S.partySlots[existIdx] = null;
+    const btn = document.getElementById(`pcb-${charId}`);
+    if(btn) btn.classList.remove('in-party');
+    renderSlots();
+    return;
+  }
+
+  const emptyIdx=S.partySlots.findIndex(s=>s===null);
+  if(emptyIdx===-1) return;
+
+  const allChars=[...S.summoned,...S.ownedSel.map(id=>getChar(id))];
+  const c=allChars.find(c=>c.id===charId);
+  if(!c) return;
+  S.partySlots[emptyIdx]=c;
+
+  const btn=document.getElementById(`pcb-${charId}`);
+  if(btn) btn.classList.add('in-party');
+
+  renderSlots();
+}
+
+function removeFromSlot(idx,e){
+  e.stopPropagation();
+  const c=S.partySlots[idx];
+  if(!c) return;
+  S.partySlots[idx]=null;
+  const btn=document.getElementById(`pcb-${c.id}`);
+  if(btn) btn.classList.remove('in-party');
+  renderSlots();
+}
+
+function confirmParty(){
+  const filled=S.partySlots.filter(Boolean);
+  if(filled.length<1) return;
+
+  const names=filled.map(c=>c.name).join(', ');
+  const buffNames=S.buffSel.map(id=>BUFFS.find(b=>b.id===id)?.name||'').join(', ');
+
+  document.getElementById('cbText').innerHTML=
+    `파티 <strong>${filled.length}명</strong> 편성 완료: ${names}<br>
+    선택 버프: <strong>${buffNames}</strong><br><br>
+    <span style="color:var(--text-secondary);font-size:12px;">
+      ⚙ 보정 시스템 적용 — 균형 레벨 최대치 · 돌파 0단계 기준 · 전용 광추 장착 · 임시 유물 세트 자동 교체
+    </span>`;
+
+  goToScreen(6);
+}
+
+
+/* ════════════════════════════════
+   ⓘ 인포 모달
+════════════════════════════════ */
+const INFO_CONTENT = {
+  step0: {
+    title: 'STEP 0 · 보유 캐릭터 설정 — 설계 근거',
+    body: `
+      <div class="modal-tag">오픈 조건</div><br>
+      별도의 5성 보유 수 조건 없음 — <strong>균형 레벨 달성만으로 첫 난이도 진입 가능</strong>합니다.<br>
+      개척자는 스토리 보상으로 모든 유저에게 고정 지급되는 5성 캐릭터이므로,
+      N=1 기준 첫 난이도는 개척자 1명만으로 조건 충족이 가능합니다.<br>
+
+      <div class="modal-divider"></div>
+      <div class="modal-tag">N값 조합 경우의 수 (nCr)</div>
+      <div class="modal-calc">
+        N=1 · 보유 1명 이상 → 1C1 = 1가지 &nbsp;→&nbsp; 개척자만으로 참여 가능<br>
+        N=2 · 보유 5명 이상 → 5C2 = <strong>10가지</strong> &nbsp;→&nbsp; 실질적 조합 선택권 확보<br>
+        N=3 · 보유 5명 이상 → 5C3 = <strong>10가지</strong> &nbsp;→&nbsp; N=2, N=3 모두 10가지 보장
+      </div>
+      난이도가 올라갈수록 N이 증가하여 더 많은 보유 캐릭터가 요구됩니다.<br>
+      <span style="color:var(--text-secondary);font-size:11px;">※ 난이도별 N값 및 균형 레벨 수치는 밸런스 테스트 후 확정 예정</span>
+    `
+  },
+  step1: {
+    title: 'STEP 1 · 픽업 분류 선택 — 설계 의도',
+    body: `
+      <div class="modal-tag">픽업 진행 순서</div><br>
+      <strong>대분류 1개 선택</strong> (속성 or 운명의 길) →
+      <strong>소분류 N개 선택</strong> → 선택된 소분류 캐릭터 합산 풀 구성 → 4명 소환<br>
+
+      <div class="modal-divider"></div>
+      <div class="modal-tag">기획 의도</div><br>
+      보유 캐릭터와의 시너지를 강화해 <strong>조합 완성의 재미</strong>를 제공하고,
+      목표성 있는 픽업으로 <strong>랜덤 피로도를 완화</strong>합니다.<br>
+
+      <div class="modal-divider"></div>
+      <div class="modal-tag">풀 크기 밸런스</div><br>
+      소분류 선택 수에 따라 풀 크기와 확률이 실시간으로 변동합니다.
+      풀이 지나치게 좁거나 넓지 않도록 소분류 선택 수를 밸런스 조정할 예정입니다.<br>
+      <span style="color:var(--text-secondary);font-size:11px;">※ 소분류별 캐릭터 수가 다르므로 실제 서비스 시 N값 가이드 제공 예정</span>
+    `
+  },
+  step3: {
+    title: 'STEP 3 · 파티 목록 구성 — N값 설계 근거',
+    body: `
+      <div class="modal-tag">N값이란</div><br>
+      파티 목록에 편성할 <strong>보유 캐릭터 수</strong>로, 난이도별로 다르게 설정되는 핵심 밸런스 변수입니다.<br>
+
+      <div class="modal-divider"></div>
+      <div class="modal-tag">N값 산출 고려 변수</div>
+      <div class="modal-calc">
+        · 난이도별 전투 스테이지 수 (예: 10회 기준)<br>
+        · 캐릭터별 출전 가능 횟수 (확정 예정)<br>
+        · 휴식 스테이지 회복 타입 발동 여부 (랜덤)<br>
+        · 모든 출전 횟수를 소모하지 않아도 클리어 가능한 구조
+      </div>
+
+      <div class="modal-tag">nCr 기준 적정 범위</div>
+      <div class="modal-calc">
+        N=2 · 보유 5명 → 5C2 = <strong>10가지</strong> 조합<br>
+        N=3 · 보유 5명 → 5C3 = <strong>10가지</strong> 조합<br>
+        → 보유 5명 이상 시 N=2~3 모두 10가지 이상 조합 보장
+      </div>
+      슬라이더를 조정하며 파티 구성 다양성 변화를 직접 체험할 수 있습니다.<br>
+      <span style="color:var(--text-secondary);font-size:11px;">※ N값 최대치는 스테이지 수·출전 횟수·휴식 회복량 확정 후 역산하여 결정 예정</span>
+    `
+  },
+  step4: {
+    title: 'STEP 4 · 픽업 버프 선택 — 설계 의도',
+    body: `
+      <div class="modal-tag">픽업 버프의 목적</div><br>
+      픽업 소환에서 고른 캐릭터 조합에 맞는 버프 방향을 직접 선택해,
+      스테이지 클리어 보상에서 <strong>원하는 버프의 등장 확률을 높이는 전략적 빌드업 시스템</strong>입니다.<br>
+      완전한 확정이 아닌 확률 상승 구조로, <strong>랜덤 피로도를 줄이면서도 긴장감을 유지</strong>합니다.<br>
+
+      <div class="modal-divider"></div>
+      <div class="modal-tag">S/A등급 픽업 지정의 이유</div><br>
+      S등급 버프는 기본 등장 확률이 낮아 픽업 지정 없이는 반복 클리어를 해도 획득하기 어렵습니다.
+      픽업 지정 시 확률이 상승하여 <strong>원하는 강력한 버프를 더 안정적으로 확보</strong>할 수 있습니다.<br><br>
+      예: 화합 캐릭터 위주로 픽업했다면 → <strong>"화합의 공명" 픽업 지정</strong>으로 빌드 방향 확정.<br>
+
+      <div class="modal-divider"></div>
+      <div class="modal-tag">B등급 공용 버프의 역할</div><br>
+      B등급은 기본 등장 확률이 높아 픽업 지정 없이도 자연스럽게 획득됩니다.
+      픽업 슬롯 2개는 S/A등급에 집중하고, <strong>B등급은 보조로 쌓이는 구조</strong>입니다.<br>
+
+      <div class="modal-divider"></div>
+      <div class="modal-tag">등급별 확률 구조</div>
+      <div class="modal-calc">
+        S등급 (운명의 길 연계) — 강력 · 기본 확률 낮음 · 픽업 시 상승폭 큼<br>
+        A등급 (속성 연계) — 중간 효과 · 중간 확률 · 픽업 시 중간 상승<br>
+        B등급 (공용) — 범용 · 기본 확률 높음 · 픽업 실익 낮음
+      </div>
+      <span style="color:var(--text-secondary);font-size:11px;">※ 기본 확률 수치 및 픽업 보정값은 밸런스 테스트 후 확정 예정</span>
+    `
+  },
+  step5: {
+    title: 'STEP 5 · 파티 편성 — 출전 가능 횟수',
+    body: `
+      <div class="modal-tag">출전 가능 횟수란</div><br>
+      각 캐릭터가 해당 난이도 내에서 전투에 참여할 수 있는 횟수입니다.
+      횟수가 0이 되면 파티 편성이 불가합니다.<br>
+
+      <div class="modal-divider"></div>
+      <div class="modal-tag">횟수 차감 기준</div><br>
+      캐릭터가 파티에 편성된 채로 전투에 입장 시 1회 차감됩니다.<br>
+
+      <div class="modal-divider"></div>
+      <div class="modal-tag">횟수 회복</div><br>
+      휴식 스테이지의 <strong>전투 참여 가능 횟수 회복 타입</strong> 발동 시 일부 캐릭터 횟수가 회복됩니다.
+      단, 해당 타입은 랜덤 발동이며 확정이 아닙니다.<br>
+
+      <div class="modal-divider"></div>
+      <span style="color:var(--text-secondary);font-size:11px;">※ 캐릭터별 기본 출전 가능 횟수는 난이도별 스테이지 수 확정 후 역산하여 결정 예정</span>
+    `
+  }
+};
+
+function openInfoModal(key){
+  const data = INFO_CONTENT[key];
+  if(!data) return;
+  document.getElementById('modalTitle').textContent = data.title;
+  document.getElementById('modalBody').innerHTML = data.body;
+  document.getElementById('infoModal').classList.add('on');
+}
+
+function closeInfoModal(e){
+  // 모달 박스 바깥 클릭 시 닫기
+  if(e.target === document.getElementById('infoModal')){
+    document.getElementById('infoModal').classList.remove('on');
+  }
+}
+
+function closeInfoModalDirect(){
+  document.getElementById('infoModal').classList.remove('on');
+}
+
+
+function goBackFromComplete(){
+  // 파티 슬롯 초기화
+  S.partySlots = [null,null,null,null];
+  document.getElementById('confirmPartyBtn').disabled = true;
+  document.getElementById('confirmPartyBtn').textContent = '⚔ 파티 확정 · 전투 입장';
+  goToScreen(5);
+}
+
+/* ════════════════════════════════
+   RESET
+════════════════════════════════ */
+function resetAll(){
+  OWNED_IDS.length = 0;
+  S={tab:'attr',subSel:null,pool:[],summoned:[],chosenSummon:[],
+     N:2,ownedSel:[],buffSel:[],partySlots:[null,null,null,null],step:0,setupTab:'attr',setupFilter:'physical',};
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen0').classList.add('active');
+  document.getElementById('completeBanner').classList.remove('on');
+  document.getElementById('nSlider').value=2;
+  updateProgress(0);
+  renderSetupScreen();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ════════════════════════════════
+   INIT
+════════════════════════════════ */
+renderSetupScreen();
+</script>
+</body>
+</html>
